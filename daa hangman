@@ -1,0 +1,139 @@
+import random
+from collections import Counter
+
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end_of_word = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = TrieNode()
+            node = node.children[char]
+        node.is_end_of_word = True
+
+    def get_words(self):
+        words = []
+        self._get_words_recursive(self.root, "", words)
+        return words
+
+    def _get_words_recursive(self, node, current_word, words):
+        if node.is_end_of_word:
+            words.append(current_word)
+        for char, child_node in node.children.items():
+            self._get_words_recursive(child_node, current_word + char, words)
+
+class LetterNode:
+    def __init__(self, letter):
+        self.letter = letter
+        self.next_letters = []
+
+class LetterGraph:
+    def __init__(self, word):
+        self.nodes = {}
+        for i in range(len(word) - 1):
+            current_letter = word[i]
+            next_letter = word[i + 1]
+            if current_letter not in self.nodes:
+                self.nodes[current_letter] = LetterNode(current_letter)
+            self.nodes[current_letter].next_letters.append(next_letter)
+
+    def get_next_letters(self, letter):
+        return self.nodes[letter].next_letters if letter in self.nodes else []
+
+class HangmanGame:
+    def __init__(self, word_list):
+        self.sorted_word_list = self.sort_words_by_length(word_list)
+        self.trie = self.build_trie(self.sorted_word_list)
+        self.secret_word = self.select_word()
+        self.letter_graph = LetterGraph(self.secret_word)
+        self.guesses = set()
+        self.max_attempts = 6
+        self.attempts_left = self.max_attempts
+
+    def sort_words_by_length(self, word_list):
+        return sorted(word_list, key=len)
+
+    def build_trie(self, word_list):
+        trie = Trie()
+        for word in word_list:
+            trie.insert(word.upper())
+        return trie
+
+    def select_word(self):
+        words = self.trie.get_words()
+        return random.choice(words)
+
+    def display_word(self):
+        displayed_word = ''
+        for letter in self.secret_word:
+            if letter in self.guesses:
+                displayed_word += letter
+            else:
+                displayed_word += '_'
+        return displayed_word
+
+    def make_guess(self, guess):
+        guess = guess.upper()
+        if guess.isalpha() and len(guess) == 1:
+            if guess in self.guesses:
+                return "You've already guessed that letter. Try again."
+            else:
+                self.guesses.add(guess)
+                if guess not in self.secret_word:
+                    self.attempts_left -= 1
+                return self.dynamic_display_word_heuristic()
+        else:
+            return "Invalid guess. Please enter a single letter."
+
+    def dynamic_display_word_heuristic(self):
+        return self._heuristic_guess()
+
+    def _heuristic_guess(self):
+        remaining_words = [word for word in self.trie.get_words() if all(letter in self.guesses or letter == '_' for letter in word)]
+        remaining_letters = [letter for word in remaining_words for letter in word if letter not in self.guesses]
+        letter_counter = Counter(remaining_letters)
+        
+        # Prioritize the most frequent letters
+        sorted_letters = sorted(letter_counter, key=letter_counter.get, reverse=True)
+
+        for letter in sorted_letters:
+            if letter not in self.guesses:
+                self.guesses.add(letter)
+                if letter not in self.secret_word:
+                    self.attempts_left -= 1
+                return self.display_word()
+
+    def get_possible_next_letters(self, letter):
+        return self.letter_graph.get_next_letters(letter)
+
+    def is_game_over(self):
+        if self.attempts_left == 0:
+            return True, "You ran out of attempts. The word was '{}'.".format(self.secret_word)
+        elif '_' not in self.display_word():
+            return True, "Congratulations! You guessed the word '{}'.".format(self.secret_word)
+        else:
+            return False, ""
+
+    def get_attempts_left(self):
+        return self.attempts_left
+
+# Example usage
+word_list = ["hangman", "python", "programming", "algorithm", "developer", "challenge"]
+hangman_game = HangmanGame(word_list)
+
+while not hangman_game.is_game_over()[0]:
+    print("Current word:", hangman_game.display_word())
+    print("Attempts left:", hangman_game.get_attempts_left())
+    guess = input("Enter a letter: ")
+    result = hangman_game.make_guess(guess)
+    print(result)
+
+# Display the final result
+print(hangman_game.is_game_over()[1])
